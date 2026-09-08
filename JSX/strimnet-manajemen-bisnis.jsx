@@ -16,6 +16,8 @@ import {
   ChevronDown,
   ChevronUp,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
@@ -64,6 +66,7 @@ const LOW_STOCK = 5;
 
 export default function App() {
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   // finance
   const [accounts, setAccounts] = useState([]);
   const [incomes, setIncomes] = useState([]);
@@ -235,7 +238,7 @@ export default function App() {
   ];
 
   return (
-    <div className="app">
+    <div className={"app " + (sidebarOpen ? "sidebar-open" : "sidebar-closed")}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         :root{
@@ -264,6 +267,7 @@ export default function App() {
         .navitem.active{background:rgba(255,255,255,0.08); border-left:2px solid var(--brass-soft); color:#fff;}
         .navitem svg{flex-shrink:0;}
         .sidebar-foot{margin-top:auto; padding-top:14px;}
+        .sidebar-toggle{display:none;}
         .reset-link{background:none;border:none;color:#8b8b78;font-size:12px;padding:4px 10px;text-decoration:underline;text-underline-offset:2px;}
         .reset-link:hover{color:#c98a76;}
         .logout-link{display:flex;align-items:center;gap:7px;background:none;border:none;color:#b9b9a9;font-size:12px;padding:10px;text-align:left;width:100%;margin-top:8px;border-top:1px solid rgba(255,255,255,.1);}
@@ -351,9 +355,49 @@ export default function App() {
         .item-total-row{display:flex; justify-content:space-between; font-weight:600; padding-top:8px;}
         .detail-row td{background:#FBFAF4; padding:14px 20px;}
         .detail-item{display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-bottom:1px solid var(--panel-line);}
+        @media (min-width:1400px){.main{padding-left:clamp(36px,4vw,72px);padding-right:clamp(36px,4vw,72px);}.main>*{max-width:1320px;}.sidebar{width:232px;padding-left:18px;padding-right:18px;}}
+        @media (max-width:1100px){.sidebar{width:190px;padding:20px 10px;}.main{padding:26px 24px 34px;}.kpi{min-width:145px;}.panel{padding:18px;}.hero{padding:20px 22px;}}
+        @media (max-width:760px){
+          .app{display:flex;align-items:stretch;min-height:100vh;border-radius:0;overflow:visible;}
+          .sidebar{position:sticky;top:0;align-self:flex-start;width:190px;min-width:190px;height:100vh;padding:18px 10px;display:flex;overflow-y:auto;overflow-x:hidden;white-space:normal;}
+          .sidebar-toggle{display:flex;align-items:center;justify-content:center;align-self:flex-end;width:32px;height:32px;margin:0 2px 12px 0;border:1px solid rgba(255,255,255,.16);border-radius:5px;color:var(--sidebar-text);background:rgba(255,255,255,.06);}
+          .sidebar-toggle:hover{color:#fff;background:rgba(255,255,255,.12);}
+          .brand{display:block;margin:0 8px 2px;font-size:12px;line-height:1.4;}
+          .brand-sub{display:block;margin:0 8px 22px;font-size:17px;line-height:1.25;}
+          .nav-group{display:block;margin:0 0 14px;}
+          .nav-group-label{padding:0 8px;margin-bottom:3px;font-size:9px;line-height:16px;}
+          .navitem{width:100%;padding:8px 8px;font-size:12px;gap:7px;min-height:34px;}
+          .sidebar-foot{display:block;margin-top:auto;padding-top:10px;}
+          .reset-link{font-size:11px;padding:7px 8px;}
+          .logout-link{width:100%;margin:8px 0 0;padding:9px 8px;border-top:1px solid rgba(255,255,255,.1);border-left:0;}
+          .confirm-box{position:absolute;left:10px;bottom:62px;z-index:3;width:170px;white-space:normal;}
+          .main{flex:1;width:calc(100% - 190px);padding:24px 16px 30px;overflow:visible;}
+          .sidebar-closed .sidebar{width:58px;min-width:58px;padding-left:7px;padding-right:7px;align-items:center;}
+          .sidebar-closed .sidebar-toggle{align-self:center;margin-right:0;}
+          .sidebar-closed .brand,.sidebar-closed .brand-sub,.sidebar-closed .nav-group-label,.sidebar-closed .reset-link{display:none;}
+          .sidebar-closed .nav-group{width:100%;}
+          .sidebar-closed .navitem{justify-content:center;padding-left:0;padding-right:0;font-size:0;}
+          .sidebar-closed .navitem svg{width:17px;height:17px;}
+          .sidebar-closed .sidebar-foot{width:100%;}
+          .sidebar-closed .logout-link{justify-content:center;padding-left:0;padding-right:0;font-size:0;}
+          .sidebar-closed .logout-link svg{width:17px;height:17px;}
+          .sidebar-closed .main{width:calc(100% - 58px);}
+          h1.page-title{font-size:24px;}.page-sub{font-size:13px;margin-bottom:20px;}
+          .hero{padding:18px;margin-bottom:16px;}.hero-figure{font-size:32px;}
+          .kpi-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px;}
+          .kpi{min-width:0;padding:12px 13px;}.kpi-label{font-size:11px;}.kpi-value{font-size:17px;overflow-wrap:anywhere;}
+          .panel{padding:15px 14px;margin-bottom:14px;border-radius:5px;}.panel-head{align-items:flex-start;gap:10px;}.panel-head .add-btn{flex-shrink:0;padding:7px 10px;font-size:12px;}
+          .section-title{font-size:14px;}.form-grid{grid-template-columns:1fr;gap:10px;}.form-actions{flex-wrap:wrap;}.form-actions button{flex:1;min-width:120px;}
+          table{display:block;overflow-x:auto;white-space:nowrap;font-size:13px;}thead th{font-size:10px;}tbody td{padding:9px 8px;}
+          .item-row-grid{grid-template-columns:1fr 1fr;gap:8px;}.item-row-grid>*:first-child{grid-column:1 / -1;}
+        }
+        @media (max-width:380px){.sidebar{width:172px;min-width:172px;padding-left:8px;padding-right:8px;}.main{width:calc(100% - 172px);padding-left:12px;padding-right:12px;}.sidebar-closed .main{width:calc(100% - 58px);}.kpi-row{grid-template-columns:1fr;}.panel{padding-left:11px;padding-right:11px;}.auth-panel{padding-left:18px;padding-right:18px;}}
       `}</style>
 
       <aside className="sidebar">
+        <button className="sidebar-toggle" type="button" onClick={() => setSidebarOpen((open) => !open)} aria-label={sidebarOpen ? "Tutup navigasi" : "Buka navigasi"} aria-expanded={sidebarOpen}>
+          {sidebarOpen ? <X size={17} /> : <Menu size={18} />}
+        </button>
         <div className="brand">ZENTA</div>
         <div className="brand-sub">Manajemen Bisnis</div>
 
