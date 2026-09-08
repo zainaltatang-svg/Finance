@@ -344,7 +344,7 @@ export default function App() {
       `}</style>
 
       <aside className="sidebar">
-        <div className="brand">STRIMNET</div>
+        <div className="brand">ZENTA</div>
         <div className="brand-sub">Manajemen Bisnis</div>
 
         {NAV_GROUPS.map((g) => (

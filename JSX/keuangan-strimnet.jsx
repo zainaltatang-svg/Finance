@@ -11,7 +11,7 @@ import {
   CreditCard,
 } from "lucide-react";
 
-const STORAGE_KEY = "strimnet-finance-v1";
+const STORAGE_KEY = "ZENTA-finance-v1";
 
 const localStorageAdapter = {
   async get(key) {
@@ -402,7 +402,7 @@ export default function App() {
       `}</style>
 
       <aside className="sidebar">
-        <div className="brand">STRIMNET</div>
+        <div className="brand">ZENTA</div>
         <div className="brand-sub">Manajemen Keuangan</div>
 
         <nav>
