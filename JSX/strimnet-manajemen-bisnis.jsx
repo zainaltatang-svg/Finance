@@ -15,7 +15,10 @@ import {
   Banknote,
   ChevronDown,
   ChevronUp,
+  LogOut,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { supabase } from "../lib/supabase";
 
 const FIN_KEY = "zenta-finance-v1";
 const SALES_KEY = "zenta-sales-v1";
@@ -60,6 +63,7 @@ const KEHADIRAN_STATUS = ["Hadir", "Izin", "Sakit", "Alpha"];
 const LOW_STOCK = 5;
 
 export default function App() {
+  const router = useRouter();
   // finance
   const [accounts, setAccounts] = useState([]);
   const [incomes, setIncomes] = useState([]);
@@ -142,12 +146,11 @@ export default function App() {
   }, [employees, attendance, payroll, loaded]);
 
   // ---- finance calcs ----
-  const accountBalance = (acc) => {
+  const balances = useMemo(() => accounts.map((acc) => {
     const inc = incomes.filter((i) => i.akun === acc.id).reduce((s, i) => s + Number(i.jumlah || 0), 0);
     const exp = expenses.filter((e) => e.akun === acc.id).reduce((s, e) => s + Number(e.jumlah || 0), 0);
-    return Number(acc.saldoAwal || 0) + inc - exp;
-  };
-  const balances = useMemo(() => accounts.map((a) => ({ ...a, saldo: accountBalance(a) })), [accounts, incomes, expenses]);
+    return { ...acc, saldo: Number(acc.saldoAwal || 0) + inc - exp };
+  }), [accounts, incomes, expenses]);
   const totalKasBank = balances.filter((a) => a.jenis !== "Kartu Kredit").reduce((s, a) => s + a.saldo, 0);
   const totalKartuKredit = balances.filter((a) => a.jenis === "Kartu Kredit").reduce((s, a) => s + a.saldo, 0);
   const netWorth = totalKasBank - totalKartuKredit;
@@ -196,6 +199,11 @@ export default function App() {
     setClients([]); setProducts([]); setOrders([]);
     setEmployees([]); setAttendance([]); setPayroll([]);
     setConfirmReset(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
   };
 
   const NAV_GROUPS = [
@@ -258,6 +266,8 @@ export default function App() {
         .sidebar-foot{margin-top:auto; padding-top:14px;}
         .reset-link{background:none;border:none;color:#8b8b78;font-size:12px;padding:4px 10px;text-decoration:underline;text-underline-offset:2px;}
         .reset-link:hover{color:#c98a76;}
+        .logout-link{display:flex;align-items:center;gap:7px;background:none;border:none;color:#b9b9a9;font-size:12px;padding:10px;text-align:left;width:100%;margin-top:8px;border-top:1px solid rgba(255,255,255,.1);}
+        .logout-link:hover{color:#fff;}
         .confirm-box{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:10px;font-size:12.5px;margin:0 4px;}
         .confirm-box p{margin:0 0 8px 0; color:#e5e2d3;}
         .confirm-row{display:flex; gap:6px;}
@@ -374,6 +384,7 @@ export default function App() {
               </div>
             </div>
           )}
+          <button className="logout-link" onClick={handleLogout}><LogOut size={14} /> Keluar</button>
         </div>
       </aside>
 
@@ -457,7 +468,7 @@ function DasborView({ netWorth, totalKasBank, totalKartuKredit, totalPendapatan,
       <div className="panel">
         <h2 className="section-title">Saldo per Rekening</h2>
         {balances.length === 0 ? (
-          <div className="empty-state"><Wallet size={26} /><p>Belum ada rekening. Tambahkan rekening di menu "Rekening Bank".</p></div>
+          <div className="empty-state"><Wallet size={26} /><p>Belum ada rekening. Tambahkan rekening di menu &quot;Rekening Bank&quot;.</p></div>
         ) : (
           <div>
             {balances.map((b) => (
@@ -544,7 +555,7 @@ function TransaksiView({ title, subtitle, accentClass, accounts, items, accountN
           <h2 className="section-title" style={{ border: "none", margin: 0, padding: 0 }}>{items.length} transaksi</h2>
           {!showForm && <button className="add-btn" disabled={accounts.length === 0} onClick={() => accounts.length && setShowForm(true)}><Plus size={15} /> Tambah {title}</button>}
         </div>
-        {accounts.length === 0 && <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: -6 }}>Tambahkan rekening di menu "Rekening Bank" sebelum mencatat {title.toLowerCase()}.</p>}
+        {accounts.length === 0 && <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: -6 }}>Tambahkan rekening di menu &quot;Rekening Bank&quot; sebelum mencatat {title.toLowerCase()}.</p>}
         {showForm && (
           <div style={{ borderBottom: "1px solid var(--panel-line)", paddingBottom: 16, marginBottom: 16 }}>
             <div className="form-grid">
@@ -867,7 +878,7 @@ function AbsensiView({ employees, attendance, addAttendance, deleteAttendance })
           <h2 className="section-title" style={{ border: "none", margin: 0, padding: 0 }}>{attendance.length} catatan</h2>
           {!showForm && <button className="add-btn" disabled={employees.length === 0} onClick={() => employees.length && setShowForm(true)}><Plus size={15} /> Catat Kehadiran</button>}
         </div>
-        {employees.length === 0 && <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: -6 }}>Tambahkan karyawan terlebih dahulu di menu "Database Karyawan".</p>}
+        {employees.length === 0 && <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: -6 }}>Tambahkan karyawan terlebih dahulu di menu &quot;Database Karyawan&quot;.</p>}
         {showForm && (
           <div style={{ borderBottom: "1px solid var(--panel-line)", paddingBottom: 16, marginBottom: 16 }}>
             <div className="form-grid">
@@ -927,7 +938,7 @@ function PenggajianView({ employees, payroll, addPayroll, deletePayroll }) {
           <h2 className="section-title" style={{ border: "none", margin: 0, padding: 0 }}>{payroll.length} slip gaji</h2>
           {!showForm && <button className="add-btn" disabled={employees.length === 0} onClick={() => employees.length && setShowForm(true)}><Plus size={15} /> Buat Slip Gaji</button>}
         </div>
-        {employees.length === 0 && <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: -6 }}>Tambahkan karyawan terlebih dahulu di menu "Database Karyawan".</p>}
+        {employees.length === 0 && <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: -6 }}>Tambahkan karyawan terlebih dahulu di menu &quot;Database Karyawan&quot;.</p>}
         {showForm && (
           <div style={{ borderBottom: "1px solid var(--panel-line)", paddingBottom: 16, marginBottom: 16 }}>
             <div className="form-grid">
