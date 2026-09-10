@@ -1,35 +1,50 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import Modal from "../ui/Modal";
 import { useFinance } from "../../context/FinanceContext";
+import { useToast } from "../ui/Toast";
 import { todayISO } from "../../lib/formatters";
 import { ATTENDANCE_STATUS } from "../../lib/constants";
 
 export default function AttendanceModal({ isOpen, onClose }) {
   const { employees, addAttendance } = useFinance();
+  const toast = useToast();
 
   const [employeeId, setEmployeeId] = useState(employees[0]?.id || "");
   const [date, setDate] = useState(todayISO());
   const [status, setStatus] = useState("Hadir");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!employeeId) {
       setError("Pilih karyawan terlebih dahulu.");
       return;
     }
 
-    addAttendance({
-      employeeId,
-      date,
-      status,
-      notes: notes.trim(),
-    });
+    setIsSubmitting(true);
+    setError("");
 
-    onClose();
+    try {
+      await addAttendance({
+        employeeId,
+        date,
+        status,
+        notes: notes.trim(),
+      });
+
+      toast.success("Catatan absensi berhasil disimpan!");
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError("Gagal menyimpan absensi. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -94,11 +109,18 @@ export default function AttendanceModal({ isOpen, onClose }) {
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>
             Batal
           </button>
-          <button type="submit" className="btn-primary">
-            Simpan Absensi
+          <button type="submit" className="btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              "Simpan Absensi"
+            )}
           </button>
         </div>
       </form>

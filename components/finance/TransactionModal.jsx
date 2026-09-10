@@ -3,11 +3,14 @@
 import { useState } from "react";
 import Modal from "../ui/Modal";
 import { useFinance } from "../../context/FinanceContext";
+import { useToast } from "../ui/Toast";
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../../lib/constants";
 import { todayISO } from "../../lib/formatters";
+import { Loader2 } from "lucide-react";
 
 export default function TransactionModal({ isOpen, onClose, defaultType = "income" }) {
   const { accounts, addTransaction } = useFinance();
+  const toast = useToast();
 
   const [type, setType] = useState(defaultType);
   const [accountId, setAccountId] = useState(accounts[0]?.id || "");
@@ -18,13 +21,14 @@ export default function TransactionModal({ isOpen, onClose, defaultType = "incom
   const [date, setDate] = useState(todayISO());
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleTypeChange = (newType) => {
     setType(newType);
     setCategory(newType === "income" ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0]);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!accountId) {
       setError("Pilih rekening bank atau kas terlebih dahulu.");
@@ -36,16 +40,26 @@ export default function TransactionModal({ isOpen, onClose, defaultType = "incom
       return;
     }
 
-    addTransaction({
-      type,
-      accountId,
-      amount: numAmount,
-      category,
-      date,
-      notes: notes.trim(),
-    });
+    setIsSubmitting(true);
+    setError("");
+    try {
+      await addTransaction({
+        type,
+        accountId,
+        amount: numAmount,
+        category,
+        date,
+        notes: notes.trim(),
+      });
 
-    onClose();
+      toast.success(type === "income" ? "Transaksi pemasukan berhasil dicatat!" : "Transaksi pengeluaran berhasil dicatat!");
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Gagal menyimpan transaksi ke cloud.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
@@ -58,49 +72,32 @@ export default function TransactionModal({ isOpen, onClose, defaultType = "incom
     >
       <form onSubmit={handleSubmit} className="app-form">
         {/* Type Toggle Tabs */}
-        <div className="type-toggle-row">
+        <div className="tab-pills" style={{ marginBottom: "16px" }}>
           <button
             type="button"
-            className={`toggle-tab-btn ${type === "income" ? "active-income" : ""}`}
+            className={`tab-pill ${type === "income" ? "active active-emerald" : ""}`}
             onClick={() => handleTypeChange("income")}
           >
-            Pemasukan (Uang Masuk)
+            Pemasukan (Income)
           </button>
           <button
             type="button"
-            className={`toggle-tab-btn ${type === "expense" ? "active-expense" : ""}`}
+            className={`tab-pill ${type === "expense" ? "active active-rose" : ""}`}
             onClick={() => handleTypeChange("expense")}
           >
-            Pengeluaran (Uang Keluar)
+            Pengeluaran (Expense)
           </button>
         </div>
 
-        {error && <div className="form-alert-error">{error}</div>}
-
-        <div className="form-group">
-          <label htmlFor="tx-amount">Nominal (Rupiah) *</label>
-          <div className="input-prefix-wrap">
-            <span className="input-prefix">Rp</span>
-            <input
-              id="tx-amount"
-              type="number"
-              min="1"
-              step="any"
-              placeholder="Contoh: 1500000"
-              value={amount}
-              onChange={(e) => {
-                setAmount(e.target.value);
-                setError("");
-              }}
-              required
-              autoFocus
-            />
+        {error && (
+          <div className="form-error-banner" style={{ marginBottom: "14px" }}>
+            {error}
           </div>
-        </div>
+        )}
 
         <div className="form-row-2">
           <div className="form-group">
-            <label htmlFor="tx-account">Pilih Rekening *</label>
+            <label htmlFor="tx-account">Rekening Kas/Bank *</label>
             <select
               id="tx-account"
               value={accountId}
@@ -133,6 +130,22 @@ export default function TransactionModal({ isOpen, onClose, defaultType = "incom
         </div>
 
         <div className="form-group">
+          <label htmlFor="tx-amount">Nominal (Rupiah) *</label>
+          <div className="input-prefix-wrap">
+            <span className="input-prefix">Rp</span>
+            <input
+              id="tx-amount"
+              type="number"
+              min="1"
+              placeholder="Contoh: 1500000"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="form-group">
           <label htmlFor="tx-date">Tanggal Transaksi *</label>
           <input
             id="tx-date"
@@ -155,14 +168,21 @@ export default function TransactionModal({ isOpen, onClose, defaultType = "incom
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>
             Batal
           </button>
           <button
             type="submit"
             className={type === "income" ? "btn-emerald" : "btn-rose"}
+            disabled={isSubmitting}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
-            {type === "income" ? "Simpan Pemasukan" : "Simpan Pengeluaran"}
+            {isSubmitting && <Loader2 className="animate-spin" size={15} />}
+            {isSubmitting
+              ? "Menyimpan..."
+              : type === "income"
+              ? "Simpan Pemasukan"
+              : "Simpan Pengeluaran"}
           </button>
         </div>
       </form>

@@ -3,10 +3,13 @@
 import { useState } from "react";
 import Modal from "../ui/Modal";
 import { useFinance } from "../../context/FinanceContext";
+import { useToast } from "../ui/Toast";
 import { todayISO, formatRp } from "../../lib/formatters";
+import { Loader2 } from "lucide-react";
 
 export default function TransferModal({ isOpen, onClose }) {
   const { accounts, accountBalances, addTransfer } = useFinance();
+  const toast = useToast();
 
   const [fromAccountId, setFromAccountId] = useState(accounts[0]?.id || "");
   const [toAccountId, setToAccountId] = useState(accounts[1]?.id || "");
@@ -14,11 +17,12 @@ export default function TransferModal({ isOpen, onClose }) {
   const [date, setDate] = useState(todayISO());
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fromBalanceObj = accountBalances.find((a) => a.id === fromAccountId);
   const fromBalance = fromBalanceObj?.currentBalance || 0;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!fromAccountId || !toAccountId) {
       setError("Pilih rekening sumber dan rekening tujuan.");
@@ -34,15 +38,25 @@ export default function TransferModal({ isOpen, onClose }) {
       return;
     }
 
-    addTransfer({
-      fromAccountId,
-      toAccountId,
-      amount: numAmount,
-      date,
-      notes: notes.trim() || "Transfer antar rekening",
-    });
+    setIsSubmitting(true);
+    setError("");
+    try {
+      await addTransfer({
+        fromAccountId,
+        toAccountId,
+        amount: numAmount,
+        date,
+        notes: notes.trim() || "Transfer antar rekening",
+      });
 
-    onClose();
+      toast.success(`Transfer sebesar ${formatRp(numAmount)} berhasil diproses!`);
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Gagal memproses transfer ke cloud.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -58,42 +72,32 @@ export default function TransferModal({ isOpen, onClose }) {
               id="tr-amount"
               type="number"
               min="1"
-              step="any"
-              placeholder="Contoh: 1000000"
+              placeholder="0"
               value={amount}
-              onChange={(e) => {
-                setAmount(e.target.value);
-                setError("");
-              }}
+              onChange={(e) => setAmount(e.target.value)}
               required
-              autoFocus
             />
           </div>
-          {fromAccountId && (
-            <span className="form-helper-text">
-              Saldo saat ini di rekening asal: <strong>{formatRp(fromBalance)}</strong>
-            </span>
-          )}
         </div>
 
         <div className="form-row-2">
           <div className="form-group">
-            <label htmlFor="tr-from">Dari Rekening (Sumber) *</label>
+            <label htmlFor="tr-from">Dari Rekening (Asal) *</label>
             <select
               id="tr-from"
               value={fromAccountId}
-              onChange={(e) => {
-                setFromAccountId(e.target.value);
-                setError("");
-              }}
+              onChange={(e) => setFromAccountId(e.target.value)}
               required
             >
-              {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.name} ({acc.type})
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
                 </option>
               ))}
             </select>
+            <span style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
+              Saldo saat ini: <strong>{formatRp(fromBalance)}</strong>
+            </span>
           </div>
 
           <div className="form-group">
@@ -101,15 +105,12 @@ export default function TransferModal({ isOpen, onClose }) {
             <select
               id="tr-to"
               value={toAccountId}
-              onChange={(e) => {
-                setToAccountId(e.target.value);
-                setError("");
-              }}
+              onChange={(e) => setToAccountId(e.target.value)}
               required
             >
-              {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id} disabled={acc.id === fromAccountId}>
-                  {acc.name} ({acc.type}) {acc.id === fromAccountId ? "(Sama)" : ""}
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
                 </option>
               ))}
             </select>
@@ -139,11 +140,17 @@ export default function TransferModal({ isOpen, onClose }) {
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>
             Batal
           </button>
-          <button type="submit" className="btn-primary">
-            Lakukan Transfer
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={isSubmitting}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            {isSubmitting && <Loader2 className="animate-spin" size={15} />}
+            {isSubmitting ? "Memproses..." : "Lakukan Transfer"}
           </button>
         </div>
       </form>

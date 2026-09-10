@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import Modal from "../ui/Modal";
 import { useFinance } from "../../context/FinanceContext";
+import { useToast } from "../ui/Toast";
 import { todayISO } from "../../lib/formatters";
 
 export default function EmployeeModal({ isOpen, onClose, employeeToEdit = null }) {
   const { addEmployee, updateEmployee } = useFinance();
+  const toast = useToast();
 
   const [name, setName] = useState(employeeToEdit?.name || "");
   const [position, setPosition] = useState(employeeToEdit?.position || "");
@@ -15,8 +18,9 @@ export default function EmployeeModal({ isOpen, onClose, employeeToEdit = null }
   const [joinDate, setJoinDate] = useState(employeeToEdit?.joinDate || todayISO());
   const [status, setStatus] = useState(employeeToEdit?.status || "Aktif");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
       setError("Nama lengkap karyawan wajib diisi.");
@@ -27,6 +31,9 @@ export default function EmployeeModal({ isOpen, onClose, employeeToEdit = null }
       return;
     }
 
+    setIsSubmitting(true);
+    setError("");
+
     const payload = {
       name: name.trim(),
       position: position.trim(),
@@ -36,13 +43,21 @@ export default function EmployeeModal({ isOpen, onClose, employeeToEdit = null }
       status,
     };
 
-    if (employeeToEdit) {
-      updateEmployee(employeeToEdit.id, payload);
-    } else {
-      addEmployee(payload);
+    try {
+      if (employeeToEdit) {
+        await updateEmployee(employeeToEdit.id, payload);
+        toast.success(`Data karyawan "${name.trim()}" berhasil diperbarui!`);
+      } else {
+        await addEmployee(payload);
+        toast.success(`Karyawan "${name.trim()}" berhasil ditambahkan!`);
+      }
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError("Gagal menyimpan data karyawan. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onClose();
   };
 
   return (
@@ -137,11 +152,20 @@ export default function EmployeeModal({ isOpen, onClose, employeeToEdit = null }
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>
             Batal
           </button>
-          <button type="submit" className="btn-primary">
-            {employeeToEdit ? "Simpan Perubahan" : "Simpan Karyawan"}
+          <button type="submit" className="btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : employeeToEdit ? (
+              "Simpan Perubahan"
+            ) : (
+              "Simpan Karyawan"
+            )}
           </button>
         </div>
       </form>

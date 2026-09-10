@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import Modal from "../ui/Modal";
 import { useFinance } from "../../context/FinanceContext";
+import { useToast } from "../ui/Toast";
 import { todayISO, currentMonthISO, formatRp } from "../../lib/formatters";
 
 export default function PayrollModal({ isOpen, onClose }) {
   const { employees, accounts, addPayroll } = useFinance();
+  const toast = useToast();
 
   const [employeeId, setEmployeeId] = useState(employees[0]?.id || "");
   const [period, setPeriod] = useState(currentMonthISO());
@@ -17,6 +20,7 @@ export default function PayrollModal({ isOpen, onClose }) {
   const [accountId, setAccountId] = useState(accounts[0]?.id || "");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleEmployeeChange = (id) => {
     setEmployeeId(id);
@@ -33,7 +37,7 @@ export default function PayrollModal({ isOpen, onClose }) {
 
   const selectedEmployee = employees.find((e) => e.id === employeeId);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!employeeId) {
       setError("Pilih karyawan terlebih dahulu.");
@@ -44,20 +48,31 @@ export default function PayrollModal({ isOpen, onClose }) {
       return;
     }
 
-    addPayroll({
-      employeeId,
-      employeeName: selectedEmployee?.name || "Karyawan",
-      period,
-      baseSalary: numBase,
-      allowance: numAllowance,
-      deduction: numDeduction,
-      netSalary,
-      paymentDate,
-      accountId: accountId || null,
-      notes: notes.trim() || `Gaji periode ${period}`,
-    });
+    setIsSubmitting(true);
+    setError("");
 
-    onClose();
+    try {
+      await addPayroll({
+        employeeId,
+        employeeName: selectedEmployee?.name || "Karyawan",
+        period,
+        baseSalary: numBase,
+        allowance: numAllowance,
+        deduction: numDeduction,
+        netSalary,
+        paymentDate,
+        accountId: accountId || null,
+        notes: notes.trim() || `Gaji periode ${period}`,
+      });
+
+      toast.success(`Payroll untuk ${selectedEmployee?.name || "karyawan"} berhasil diproses!`);
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError("Gagal memproses payroll. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -189,11 +204,18 @@ export default function PayrollModal({ isOpen, onClose }) {
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>
             Batal
           </button>
-          <button type="submit" className="btn-primary">
-            Bayarkan Payroll &amp; Terbitkan Slip
+          <button type="submit" className="btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Memproses...</span>
+              </>
+            ) : (
+              "Bayarkan Payroll & Terbitkan Slip"
+            )}
           </button>
         </div>
       </form>
