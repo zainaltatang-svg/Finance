@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   category TEXT NOT NULL,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   notes TEXT,
+  order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
+  payroll_id UUID REFERENCES public.payroll(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -65,11 +67,15 @@ CREATE TABLE IF NOT EXISTS public.clients (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. Tabel Produk / Stok Inventori
+-- 6. Tabel Produk & Jasa Katalog
 CREATE TABLE IF NOT EXISTS public.products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'product', -- 'product' (Barang Fisik) atau 'service' (Jasa/Layanan)
+  category TEXT,
+  unit TEXT DEFAULT 'pcs', -- 'pcs', 'unit', 'jam', 'hari', 'sesi', 'proyek', 'paket', dll.
+  description TEXT,
   sku TEXT,
   cost_price NUMERIC NOT NULL DEFAULT 0,
   price NUMERIC NOT NULL DEFAULT 0,
@@ -84,6 +90,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   invoice_number TEXT NOT NULL,
   client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL,
+  paid_account_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
+  client_name TEXT,
+  client_address TEXT,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   due_date DATE,
   status TEXT NOT NULL DEFAULT 'Baru', -- 'Baru', 'Diproses', 'Selesai', 'Dibatalkan'
@@ -98,6 +107,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
 -- 8. Tabel Item Pesanan
 CREATE TABLE IF NOT EXISTS public.order_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
   product_name TEXT NOT NULL,
@@ -135,6 +145,7 @@ CREATE TABLE IF NOT EXISTS public.payroll (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   employee_id UUID NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
+  account_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
   period TEXT NOT NULL, -- 'YYYY-MM'
   base_salary NUMERIC NOT NULL DEFAULT 0,
   allowance NUMERIC NOT NULL DEFAULT 0,
@@ -145,6 +156,33 @@ CREATE TABLE IF NOT EXISTS public.payroll (
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- =======================================================
+-- INDEXING UNTUK PERFORMA & COVERING FOREIGN KEYS
+-- =======================================================
+CREATE INDEX IF NOT EXISTS accounts_user_id_idx ON public.accounts(user_id);
+CREATE INDEX IF NOT EXISTS transactions_user_id_idx ON public.transactions(user_id);
+CREATE INDEX IF NOT EXISTS transactions_account_id_idx ON public.transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_order_id ON public.transactions(order_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_payroll_id ON public.transactions(payroll_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_order_income ON public.transactions(user_id, order_id) WHERE order_id IS NOT NULL AND type = 'income';
+CREATE INDEX IF NOT EXISTS transfers_user_id_idx ON public.transfers(user_id);
+CREATE INDEX IF NOT EXISTS idx_transfers_from_account_id ON public.transfers(from_account_id);
+CREATE INDEX IF NOT EXISTS idx_transfers_to_account_id ON public.transfers(to_account_id);
+CREATE INDEX IF NOT EXISTS clients_user_id_idx ON public.clients(user_id);
+CREATE INDEX IF NOT EXISTS products_user_id_idx ON public.products(user_id);
+CREATE INDEX IF NOT EXISTS orders_user_id_idx ON public.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_client_id ON public.orders(client_id);
+CREATE INDEX IF NOT EXISTS idx_orders_paid_account_id ON public.orders(paid_account_id);
+CREATE INDEX IF NOT EXISTS order_items_order_id_idx ON public.order_items(order_id);
+CREATE INDEX IF NOT EXISTS order_items_user_id_idx ON public.order_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON public.order_items(product_id);
+CREATE INDEX IF NOT EXISTS employees_user_id_idx ON public.employees(user_id);
+CREATE INDEX IF NOT EXISTS attendance_user_id_idx ON public.attendance(user_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_employee_id ON public.attendance(employee_id);
+CREATE INDEX IF NOT EXISTS payroll_user_id_idx ON public.payroll(user_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_employee_id ON public.payroll(employee_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_account_id ON public.payroll(account_id);
 
 -- =======================================================
 -- AKTIFKAN ROW LEVEL SECURITY (RLS)
@@ -161,14 +199,71 @@ ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payroll ENABLE ROW LEVEL SECURITY;
 
--- Policy Templates untuk user id
-CREATE POLICY "Users can only view their own profile" ON public.profiles FOR ALL USING (auth.uid() = id);
-CREATE POLICY "Users can only manage their accounts" ON public.accounts FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can only manage their transactions" ON public.transactions FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can only manage their transfers" ON public.transfers FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can only manage their clients" ON public.clients FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can only manage their products" ON public.products FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can only manage their orders" ON public.orders FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can only manage their employees" ON public.employees FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can only manage their attendance" ON public.attendance FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can only manage their payroll" ON public.payroll FOR ALL USING (auth.uid() = user_id);
+-- =======================================================
+-- OPTIMIZED RLS POLICIES (Fix auth_rls_initplan per-row call)
+-- =======================================================
+DROP POLICY IF EXISTS "profiles_owner_policy" ON public.profiles;
+CREATE POLICY "profiles_owner_policy" ON public.profiles
+FOR ALL TO authenticated
+USING ((select auth.uid()) = id)
+WITH CHECK ((select auth.uid()) = id);
+
+DROP POLICY IF EXISTS "accounts_owner_policy" ON public.accounts;
+CREATE POLICY "accounts_owner_policy" ON public.accounts
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "transactions_owner_policy" ON public.transactions;
+CREATE POLICY "transactions_owner_policy" ON public.transactions
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "transfers_owner_policy" ON public.transfers;
+CREATE POLICY "transfers_owner_policy" ON public.transfers
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "clients_owner_policy" ON public.clients;
+CREATE POLICY "clients_owner_policy" ON public.clients
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "products_owner_policy" ON public.products;
+CREATE POLICY "products_owner_policy" ON public.products
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "orders_owner_policy" ON public.orders;
+CREATE POLICY "orders_owner_policy" ON public.orders
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "order_items_owner_policy" ON public.order_items;
+CREATE POLICY "order_items_owner_policy" ON public.order_items
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "employees_owner_policy" ON public.employees;
+CREATE POLICY "employees_owner_policy" ON public.employees
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "attendance_owner_policy" ON public.attendance;
+CREATE POLICY "attendance_owner_policy" ON public.attendance
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "payroll_owner_policy" ON public.payroll;
+CREATE POLICY "payroll_owner_policy" ON public.payroll
+FOR ALL TO authenticated
+USING ((select auth.uid()) = user_id)
+WITH CHECK ((select auth.uid()) = user_id);
