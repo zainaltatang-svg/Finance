@@ -24,9 +24,11 @@ export default function ReportsPage() {
     const currentMonth = today.slice(0, 7);
 
     if (periodFilter === "thisMonth") {
+      const [yearNum, monthNum] = currentMonth.split("-").map(Number);
+      const lastDay = new Date(yearNum, monthNum, 0).getDate();
       return {
         startDate: `${currentMonth}-01`,
-        endDate: `${currentMonth}-31`,
+        endDate: `${currentMonth}-${String(lastDay).padStart(2, "0")}`,
         periodLabel: `Bulan Ini (${currentMonth})`,
       };
     }
@@ -69,7 +71,7 @@ export default function ReportsPage() {
   return (
     <div className="reports-page">
       {/* Header & Controls */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+      <div className="page-header-flex">
         <div>
           <h2 style={{ fontSize: "20px", fontWeight: 700 }}>Laporan Keuangan &amp; Laba Rugi</h2>
           <p style={{ fontSize: "12.5px", color: "var(--text-secondary)" }}>
@@ -77,7 +79,7 @@ export default function ReportsPage() {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+        <div className="page-header-actions">
           <select
             value={periodFilter}
             onChange={(e) => setPeriodFilter(e.target.value)}
@@ -216,7 +218,7 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "16px" }}>
+        <div className="report-assets-grid">
           <div style={{ padding: "14px", backgroundColor: "var(--bg-panel-subtle)", borderRadius: "var(--radius-md)" }}>
             <span style={{ fontSize: "11.5px", color: "var(--text-muted)", display: "block" }}>1. Saldo Kas &amp; Bank</span>
             <strong style={{ fontFamily: "var(--font-mono)", fontSize: "15px" }}>{formatRp(totalCashBank)}</strong>

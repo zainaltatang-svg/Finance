@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Plus, Printer, Trash2, Edit2, UserCheck, CalendarCheck, Banknote, Users } from "lucide-react";
 import { useFinance } from "../../../context/FinanceContext";
+import { useToast } from "../../../components/ui/Toast";
+import { useConfirm } from "../../../components/ui/ConfirmModal";
 import { formatRp, formatDate } from "../../../lib/formatters";
 import Badge from "../../../components/ui/Badge";
 import EmployeeModal from "../../../components/employees/EmployeeModal";
@@ -20,6 +22,9 @@ export default function EmployeesPage() {
     deletePayroll,
     getEmployeeName,
   } = useFinance();
+
+  const toast = useToast();
+  const { confirm } = useConfirm();
 
   const [activeTab, setActiveTab] = useState("employees"); // 'employees' | 'attendance' | 'payroll'
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
@@ -46,15 +51,15 @@ export default function EmployeesPage() {
   return (
     <div className="employees-page">
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+      <div className="page-header-flex">
         <div>
-          <h2 style={{ fontSize: "20px", fontWeight: 700 }}>Karyawan, Absensi &amp; Payroll</h2>
+          <h2 style={{ fontSize: "20px", fontWeight: 700 }}>Penjaga Warung &amp; Gaji</h2>
           <p style={{ fontSize: "12.5px", color: "var(--text-secondary)" }}>
-            Kelola tim staf, pencatatan kehadiran harian, dan penerbitan slip gaji digital.
+            Kelola jadwal shift jaga warung, absensi kehadiran harian, dan pembayaran upah / gaji penjaga warung.
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div className="page-header-actions">
           {activeTab === "employees" && (
             <button
               type="button"
@@ -64,7 +69,7 @@ export default function EmployeesPage() {
                 setShowEmployeeModal(true);
               }}
             >
-              <Plus size={16} /> Tambah Karyawan
+              <Plus size={16} /> + Tambah Penjaga Warung
             </button>
           )}
 
@@ -74,7 +79,7 @@ export default function EmployeesPage() {
               className="btn-primary"
               onClick={() => setShowAttendanceModal(true)}
             >
-              <Plus size={16} /> Catat Absensi
+              <Plus size={16} /> + Catat Absensi Shift
             </button>
           )}
 
@@ -84,7 +89,7 @@ export default function EmployeesPage() {
               className="btn-primary"
               onClick={() => setShowPayrollModal(true)}
             >
-              <Plus size={16} /> Proses Payroll Baru
+              <Plus size={16} /> + Bayar Gaji / Uang Makan
             </button>
           )}
         </div>
@@ -93,15 +98,15 @@ export default function EmployeesPage() {
       {/* KPI Cards */}
       <div className="stats-grid-3" style={{ marginBottom: "24px" }}>
         <div className="stat-card stat-card-blue" style={{ padding: "16px 20px" }}>
-          <span className="stat-card-title">Total Karyawan Aktif</span>
+          <span className="stat-card-title">Penjaga Warung Aktif</span>
           <div className="stat-card-value">{employees.filter((e) => e.status === "Aktif").length} orang</div>
-          <span className="stat-card-sub">Staf terdaftar di sistem</span>
+          <span className="stat-card-sub">Staf penjaga warung kelontong</span>
         </div>
 
         <div className="stat-card stat-card-emerald" style={{ padding: "16px 20px" }}>
           <span className="stat-card-title">Presensi Hadir (Bulan Ini)</span>
           <div className="stat-card-value text-emerald">
-            {attendance.filter((a) => a.date?.startsWith(currentMonth) && a.status === "Hadir").length} sesi
+            {attendance.filter((a) => a.date?.startsWith(currentMonth) && a.status === "Hadir").length} shift
           </div>
           <span className="stat-card-sub">Kehadiran tercatat</span>
         </div>
@@ -114,7 +119,7 @@ export default function EmployeesPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "12px" }}>
+      <div className="scrollable-tabs-bar" style={{ marginBottom: "20px", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "12px" }}>
         <button
           type="button"
           className={`btn-secondary btn-sm ${activeTab === "employees" ? "btn-primary" : ""}`}
@@ -196,9 +201,22 @@ export default function EmployeesPage() {
                           <button
                             type="button"
                             className="icon-del-btn"
-                            onClick={() => {
-                              if (confirm(`Hapus karyawan "${emp.name}"? Data absensi dan penggajian terkait juga akan dihapus.`)) {
-                                deleteEmployee(emp.id);
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "Hapus Karyawan",
+                                message: `Hapus data karyawan "${emp.name}"? Data absensi dan penggajian terkait juga akan dihapus.`,
+                                confirmText: "Hapus Karyawan",
+                                cancelText: "Batal",
+                                danger: true,
+                              });
+                              if (ok) {
+                                try {
+                                  await deleteEmployee(emp.id);
+                                  toast.success(`Karyawan "${emp.name}" berhasil dihapus.`);
+                                } catch (err) {
+                                  console.error(err);
+                                  toast.error(err.message || `Gagal menghapus karyawan "${emp.name}".`);
+                                }
                               }
                             }}
                             title="Hapus Karyawan"
@@ -254,7 +272,24 @@ export default function EmployeesPage() {
                         <button
                           type="button"
                           className="icon-del-btn"
-                          onClick={() => deleteAttendance(att.id)}
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: "Hapus Absensi",
+                              message: `Hapus catatan absensi tanggal ${formatDate(att.date)}?`,
+                              confirmText: "Hapus",
+                              cancelText: "Batal",
+                              danger: true,
+                            });
+                            if (ok) {
+                              try {
+                                await deleteAttendance(att.id);
+                                toast.info("Catatan absensi dihapus.");
+                              } catch (err) {
+                                console.error(err);
+                                toast.error(err.message || "Gagal menghapus catatan absensi.");
+                              }
+                            }
+                          }}
                           title="Hapus Catatan"
                         >
                           <Trash2 size={15} />
@@ -309,7 +344,7 @@ export default function EmployeesPage() {
                       <td style={{ textAlign: "right" }} className="num-cell text-rose">
                         -{formatRp(pay.deduction || 0)}
                       </td>
-                      <td style={{ textAlign: "right" }} className="num-cell" style={{ fontWeight: 700, fontSize: "14px", color: "var(--emerald-dark)" }}>
+                      <td className="num-cell" style={{ textAlign: "right", fontWeight: 700, fontSize: "14px", color: "var(--emerald-dark)" }}>
                         {formatRp(pay.netSalary)}
                       </td>
                       <td style={{ whiteSpace: "nowrap" }}>{formatDate(pay.paymentDate)}</td>
@@ -326,9 +361,22 @@ export default function EmployeesPage() {
                           <button
                             type="button"
                             className="icon-del-btn"
-                            onClick={() => {
-                              if (confirm(`Hapus catatan payroll untuk "${pay.employeeName}"?`)) {
-                                deletePayroll(pay.id);
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "Hapus Payroll",
+                                message: `Hapus catatan payroll untuk "${pay.employeeName}" periode ${pay.period}?`,
+                                confirmText: "Hapus Payroll",
+                                cancelText: "Batal",
+                                danger: true,
+                              });
+                              if (ok) {
+                                try {
+                                  await deletePayroll(pay.id);
+                                  toast.success(`Catatan payroll "${pay.employeeName}" dihapus.`);
+                                } catch (err) {
+                                  console.error(err);
+                                  toast.error(err.message || `Gagal menghapus catatan payroll "${pay.employeeName}".`);
+                                }
                               }
                             }}
                             title="Hapus Payroll"

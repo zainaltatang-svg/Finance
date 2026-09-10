@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, ArrowLeftRight, Trash2, Building2, Landmark, Wallet, Smartphone, CreditCard } from "lucide-react";
+import { Plus, ArrowLeftRight, Trash2, Building2, Landmark, Wallet, Smartphone, CreditCard, Loader2 } from "lucide-react";
 import { useFinance } from "../../../context/FinanceContext";
+import { useToast } from "../../../components/ui/Toast";
+import { useConfirm } from "../../../components/ui/ConfirmModal";
 import { formatRp, formatDate } from "../../../lib/formatters";
 import { ACCOUNT_TYPES } from "../../../lib/constants";
 import Modal from "../../../components/ui/Modal";
@@ -18,6 +20,9 @@ export default function AccountsPage() {
     getAccountName,
   } = useFinance();
 
+  const toast = useToast();
+  const { confirm } = useConfirm();
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
 
@@ -27,26 +32,38 @@ export default function AccountsPage() {
   const [accountNumber, setAccountNumber] = useState("");
   const [initialBalance, setInitialBalance] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleAddAccount = (e) => {
+  const handleAddAccount = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
       setError("Nama rekening atau kas wajib diisi.");
       return;
     }
 
-    addAccount({
-      name: name.trim(),
-      type,
-      accountNumber: accountNumber.trim() || "-",
-      initialBalance: Number(initialBalance) || 0,
-    });
-
-    setName("");
-    setAccountNumber("");
-    setInitialBalance("");
+    setIsSubmitting(true);
     setError("");
-    setShowAddModal(false);
+
+    try {
+      await addAccount({
+        name: name.trim(),
+        type,
+        accountNumber: accountNumber.trim() || "-",
+        initialBalance: Number(initialBalance) || 0,
+      });
+
+      toast.success(`Rekening "${name.trim()}" berhasil ditambahkan!`);
+      setName("");
+      setAccountNumber("");
+      setInitialBalance("");
+      setError("");
+      setShowAddModal(false);
+    } catch (err) {
+      console.error(err);
+      setError("Gagal menambahkan rekening. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getAccountIcon = (accType) => {
@@ -61,28 +78,31 @@ export default function AccountsPage() {
 
   return (
     <div className="accounts-page">
-      {/* Page Header Actions */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
+      {/* Top Header */}
+      <div className="page-header-flex">
         <div>
-          <h2 style={{ fontSize: "20px", fontWeight: 700 }}>Daftar Rekening Bank &amp; Kas</h2>
+          <h2 style={{ fontSize: "20px", fontWeight: 700 }}>Kas Toko &amp; Rekening Bank</h2>
           <p style={{ fontSize: "12.5px", color: "var(--text-secondary)" }}>
-            Kelola kas tunai, rekening operasional, giro perusahaan, dan mutasi saldo.
+            Kelola uang tunai di laci kasir, QRIS warung, dan rekening bank kulakan sembako.
           </p>
         </div>
-        <div style={{ display: "flex", gap: "10px" }}>
+
+        <div className="page-header-actions">
           <button
             type="button"
             className="btn-secondary"
             onClick={() => setShowTransferModal(true)}
+            disabled={accountBalances.length < 2}
+            title={accountBalances.length < 2 ? "Butuh minimal 2 rekening" : "Pindah Kas / Tarik Tunai"}
           >
-            <ArrowLeftRight size={16} /> Transfer Antar Rekening
+            <ArrowLeftRight size={16} /> Tarik Tunai / Pindah Kas
           </button>
           <button
             type="button"
             className="btn-primary"
             onClick={() => setShowAddModal(true)}
           >
-            <Plus size={16} /> Tambah Rekening Baru
+            <Plus size={16} /> + Tambah Kas / Rekening
           </button>
         </div>
       </div>
@@ -109,9 +129,22 @@ export default function AccountsPage() {
                 <button
                   type="button"
                   className="icon-del-btn"
-                  onClick={() => {
-                    if (confirm(`Hapus rekening "${acc.name}" beserta mutasinya?`)) {
-                      deleteAccount(acc.id);
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: "Hapus Rekening",
+                      message: `Hapus rekening "${acc.name}" beserta seluruh riwayat mutasi terkait?`,
+                      confirmText: "Hapus Rekening",
+                      cancelText: "Batal",
+                      danger: true,
+                    });
+                    if (ok) {
+                      try {
+                        await deleteAccount(acc.id);
+                        toast.success(`Rekening "${acc.name}" berhasil dihapus.`);
+                      } catch (err) {
+                        console.error(err);
+                        toast.error(err.message || `Gagal menghapus rekening "${acc.name}".`);
+                      }
                     }
                   }}
                   title="Hapus Rekening"
@@ -204,7 +237,19 @@ export default function AccountsPage() {
                       <button
                         type="button"
                         className="icon-del-btn"
-                        onClick={() => deleteTransfer(tr.id)}
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: "Batalkan Transfer",
+                            message: `Hapus catatan mutasi transfer sebesar ${formatRp(tr.amount)}?`,
+                            confirmText: "Ya, Batalkan",
+                            cancelText: "Batal",
+                            danger: true,
+                          });
+                          if (ok) {
+                            deleteTransfer(tr.id);
+                            toast.info("Catatan transfer internal dihapus.");
+                          }
+                        }}
                         title="Batalkan transfer"
                       >
                         <Trash2 size={15} />
@@ -292,11 +337,19 @@ export default function AccountsPage() {
               type="button"
               className="btn-secondary"
               onClick={() => setShowAddModal(false)}
+              disabled={isSubmitting}
             >
               Batal
             </button>
-            <button type="submit" className="btn-primary">
-              Simpan Rekening
+            <button type="submit" className="btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                "Simpan Rekening"
+              )}
             </button>
           </div>
         </form>
