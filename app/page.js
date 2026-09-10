@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Sparkles, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 
@@ -13,6 +13,43 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  // Periksa sesi aktif pada saat initial mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkActiveSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && isMounted) {
+          document.cookie = `sb-access-token=${session.access_token}; path=/; max-age=604800; SameSite=Lax`;
+          router.replace("/dashboard");
+          return;
+        }
+      } catch (err) {
+        console.error("Gagal memeriksa sesi auth:", err);
+      } finally {
+        if (isMounted) {
+          setCheckingSession(false);
+        }
+      }
+    }
+
+    checkActiveSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && isMounted) {
+        document.cookie = `sb-access-token=${session.access_token}; path=/; max-age=604800; SameSite=Lax`;
+        router.replace("/dashboard");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [router]);
 
   const updateField = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -33,26 +70,43 @@ export default function SignInPage() {
     setLoading(true);
     setError("");
     setNotice("");
-    const result = mode === "signin"
-      ? await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
-      : await supabase.auth.signUp({ email: form.email, password: form.password });
-    setLoading(false);
-    if (result.error) {
-      const message = result.error.message.toLowerCase();
-      if (message.includes("invalid login credentials")) {
-        setError("Email atau kata sandi salah. Jika belum punya akun, pilih Buat akun terlebih dahulu.");
-      } else if (message.includes("email not confirmed")) {
-        setError("Email belum dikonfirmasi. Periksa inbox email Anda sebelum masuk.");
-      } else {
-        setError(result.error.message);
+
+    try {
+      const result = mode === "signin"
+        ? await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
+        : await supabase.auth.signUp({ email: form.email, password: form.password });
+
+      if (result.error) {
+        const msg = result.error.message.toLowerCase();
+        if (msg.includes("invalid login credentials")) {
+          setError("Email atau kata sandi tidak cocok. Silakan periksa kembali atau buat akun baru.");
+        } else if (msg.includes("email not confirmed")) {
+          setError("Email belum dikonfirmasi. Periksa kotak masuk/spam email Anda untuk verifikasi.");
+        } else if (msg.includes("user already registered")) {
+          setError("Email ini sudah terdaftar. Silakan pilih 'Masuk di sini' untuk login.");
+        } else if (msg.includes("rate limit")) {
+          setError("Terlalu banyak percobaan dalam waktu singkat. Harap tunggu beberapa menit sebelum mencoba lagi.");
+        } else {
+          setError(result.error.message || "Terjadi kendala saat memproses permintaan.");
+        }
+        return;
       }
-      return;
+
+      if (result.data?.session?.access_token) {
+        document.cookie = `sb-access-token=${result.data.session.access_token}; path=/; max-age=604800; SameSite=Lax`;
+      }
+
+      if (mode === "signup" && !result.data.session) {
+        setNotice("Akun berhasil dibuat! Silakan cek kotak masuk email Anda untuk mengonfirmasi sebelum masuk.");
+        return;
+      }
+
+      router.replace("/dashboard");
+    } catch (err) {
+      setError(err.message || "Terjadi kesalahan sistem saat mencoba menghubungkan ke layanan.");
+    } finally {
+      setLoading(false);
     }
-    if (mode === "signup" && !result.data.session) {
-      setNotice("Akun berhasil dibuat. Silakan cek email untuk konfirmasi sebelum masuk.");
-      return;
-    }
-    router.push("/dashboard");
   };
 
   const switchMode = () => {
@@ -60,6 +114,17 @@ export default function SignInPage() {
     setError("");
     setNotice("");
   };
+
+  if (checkingSession) {
+    return (
+      <main className="auth-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", color: "var(--text-secondary)" }}>
+          <Loader2 className="animate-spin" size={28} color="var(--emerald-primary)" />
+          <span style={{ fontSize: "13px" }}>Memeriksa sesi ZENTA...</span>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="auth-shell">
@@ -90,13 +155,21 @@ export default function SignInPage() {
             <label htmlFor="password">Kata sandi</label>
             <div className="input-wrap">
               <LockKeyhole size={17} aria-hidden="true" />
-              <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Masukkan kata sandi" value={form.password} onChange={updateField} />
+              <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Masukkan kata sandi (min. 6 karakter)" value={form.password} onChange={updateField} />
               <button type="button" className="icon-button" aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button>
             </div>
             {mode === "signin" && <div className="form-options"><label className="check-label"><input type="checkbox" /> <span>Ingat saya</span></label><button type="button" className="text-button">Lupa kata sandi?</button></div>}
             {error && <p className="form-error" role="alert">{error}</p>}
             {notice && <p className="form-notice" role="status">{notice}</p>}
-            <button className="submit-button" type="submit" disabled={loading}>{loading ? "Memproses..." : mode === "signin" ? "Masuk ke ZENTA" : "Buat akun ZENTA"} {!loading && <ArrowRight size={17} />}</button>
+            <button className="submit-button" type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} style={{ display: "inline-block", marginRight: "6px" }} />
+                  Memproses...
+                </>
+              ) : mode === "signin" ? "Masuk ke ZENTA" : "Buat akun ZENTA"} 
+              {!loading && <ArrowRight size={17} />}
+            </button>
           </form>
           <p className="auth-footer">{mode === "signin" ? "Belum memiliki akun?" : "Sudah memiliki akun?"} <button type="button" className="text-button" onClick={switchMode}>{mode === "signin" ? "Buat akun" : "Masuk di sini"}</button></p>
         </div>

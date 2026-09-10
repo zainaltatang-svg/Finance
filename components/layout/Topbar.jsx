@@ -2,26 +2,28 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Menu, Plus, ArrowLeftRight, FileText, ChevronDown } from "lucide-react";
+import { Menu, Plus, ArrowLeftRight, FileText, ChevronDown, RefreshCw, CloudOff } from "lucide-react";
 import { useFinance } from "../../context/FinanceContext";
+import { useToast } from "../ui/Toast";
 import TransactionModal from "../finance/TransactionModal";
 import TransferModal from "../finance/TransferModal";
 import InvoiceModal from "../sales/InvoiceModal";
 
 const ROUTE_TITLES = {
-  "/dashboard": { title: "Dasbor Utama", desc: "Ringkasan metrik finansial, arus kas, dan operasional bisnis" },
-  "/dashboard/accounts": { title: "Rekening Bank & Kas", desc: "Kelola kas tunai, rekening giro, bank, dan mutasi saldo" },
-  "/dashboard/transactions": { title: "Mutasi Transaksi", desc: "Pencatatan uang masuk, keluar, filter, dan ekspor data" },
-  "/dashboard/sales": { title: "Penjualan & Invoice", desc: "Kelola order pesanan klien, status tagihan, dan cetak invoice" },
-  "/dashboard/inventory": { title: "Inventori Produk", desc: "Manajemen katalog stok barang, SKU, harga beli vs jual, dan valuasi aset" },
-  "/dashboard/employees": { title: "Karyawan & Payroll", desc: "Database staf, absensi harian, dan slip gaji terintegrasi" },
-  "/dashboard/reports": { title: "Laporan Keuangan", desc: "Laporan Laba Rugi (P&L), ringkasan arus kas, dan rasio keuangan" },
-  "/dashboard/settings": { title: "Pengaturan & Backup", desc: "Pengaturan profil bisnis, backup/restore data JSON, dan integrasi cloud" },
+  "/dashboard": { title: "Dasbor Warung", desc: "Ringkasan omset harian, kas laci toko, kasbon warga, dan barang perlu kulakan" },
+  "/dashboard/accounts": { title: "Kas Toko & Bank", desc: "Kelola kas laci uang tunai, QRIS warung, dan rekening bank kulakan" },
+  "/dashboard/transactions": { title: "Mutasi & Kulakan", desc: "Pencatatan arus kas warung, belanja kulakan pasar/agen, dan operasional" },
+  "/dashboard/sales": { title: "Kasir & Kasbon Warung", desc: "Transaksi kasir eceran, buku kasbon warga, dan cetak struk thermal" },
+  "/dashboard/inventory": { title: "Barang & Stok Sembako", desc: "Katalog stok sembako warung, peringatan barang menipis, dan margin laba" },
+  "/dashboard/employees": { title: "Penjaga Warung", desc: "Jadwal shift jaga warung, absensi harian, dan gaji/uang makan" },
+  "/dashboard/reports": { title: "Laporan Keuntungan", desc: "Laporan Laba Rugi warung, keuntungan kulakan harian, dan arus kas" },
+  "/dashboard/settings": { title: "Pengaturan Warung", desc: "Profil warung kelontong, backup/restore data, dan sinkronisasi" },
 };
 
 export default function Topbar({ openMobile }) {
   const pathname = usePathname();
-  const { profile, user } = useFinance();
+  const { profile, user, isSyncing, refreshCloudData } = useFinance();
+  const toast = useToast();
 
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [modalType, setModalType] = useState(null); // 'income', 'expense', 'transfer', 'invoice'
@@ -121,6 +123,39 @@ export default function Topbar({ openMobile }) {
                   </button>
                 </div>
               </>
+            )}
+          </div>
+
+          {/* Cloud Sync Status Indicator */}
+          <div className="cloud-status-indicator">
+            {isSyncing ? (
+              <span className="cloud-badge cloud-syncing" title="Sedang menyinkronkan data dengan Supabase...">
+                <RefreshCw size={13} className="animate-spin" />
+                <span className="cloud-badge-text">Menyinkronkan...</span>
+              </span>
+            ) : user ? (
+              <button
+                type="button"
+                className="cloud-badge cloud-online"
+                onClick={async () => {
+                  try {
+                    await refreshCloudData();
+                    toast.success("Data berhasil disinkronkan dari database Supabase.");
+                  } catch {
+                    toast.error("Gagal menyinkronkan data cloud.");
+                  }
+                }}
+                title="Cloud Terhubung (Klik untuk menyegarkan data)"
+              >
+                <span className="online-dot" />
+                <span className="cloud-badge-text">Cloud Aktif</span>
+                <RefreshCw size={11} className="refresh-icon-subtle" />
+              </button>
+            ) : (
+              <span className="cloud-badge cloud-offline" title="Mode Offline / Penyimpanan Lokal">
+                <CloudOff size={13} />
+                <span className="cloud-badge-text">Lokal</span>
+              </span>
             )}
           </div>
 

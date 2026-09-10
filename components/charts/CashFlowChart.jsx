@@ -20,8 +20,6 @@ export default function CashFlowChart({ data = [] }) {
     ...data.map((d) => Math.max(d.income, d.expense))
   );
 
-  const chartHeight = 180;
-
   return (
     <div className="cashflow-chart-container">
       <div className="chart-legend">
@@ -38,8 +36,8 @@ export default function CashFlowChart({ data = [] }) {
       <div className="chart-svg-wrapper">
         <div className="chart-bars-area">
           {data.map((item, idx) => {
-            const incomeHeight = Math.max(4, (item.income / maxValue) * chartHeight);
-            const expenseHeight = Math.max(4, (item.expense / maxValue) * chartHeight);
+            const incomePct = Math.min(100, Math.max(3, (item.income / maxValue) * 100));
+            const expensePct = Math.min(100, Math.max(3, (item.expense / maxValue) * 100));
             const isHovered = hoveredIndex === idx;
 
             return (
@@ -48,6 +46,7 @@ export default function CashFlowChart({ data = [] }) {
                 className={`chart-bar-group ${isHovered ? "is-hovered" : ""}`}
                 onMouseEnter={() => setHoveredIndex(idx)}
                 onMouseLeave={() => setHoveredIndex(null)}
+                onClick={() => setHoveredIndex(hoveredIndex === idx ? null : idx)}
               >
                 {/* Tooltip */}
                 {isHovered && (
@@ -66,15 +65,15 @@ export default function CashFlowChart({ data = [] }) {
                 )}
 
                 {/* Bars */}
-                <div className="bar-track" style={{ height: `${chartHeight}px` }}>
+                <div className="bar-track">
                   <div
                     className="bar-fill bar-income"
-                    style={{ height: `${incomeHeight}px` }}
+                    style={{ height: `${incomePct}%` }}
                     title={`Pemasukan: ${formatRp(item.income)}`}
                   />
                   <div
                     className="bar-fill bar-expense"
-                    style={{ height: `${expenseHeight}px` }}
+                    style={{ height: `${expensePct}%` }}
                     title={`Pengeluaran: ${formatRp(item.expense)}`}
                   />
                 </div>

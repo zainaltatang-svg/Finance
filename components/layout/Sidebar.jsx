@@ -23,34 +23,34 @@ const NAV_GROUPS = [
   {
     title: "RINGKASAN",
     items: [
-      { href: "/dashboard", label: "Dasbor Utama", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dasbor Warung", icon: LayoutDashboard },
     ],
   },
   {
-    title: "KEUANGAN",
+    title: "KASIR & STOK",
     items: [
-      { href: "/dashboard/accounts", label: "Rekening Bank & Kas", icon: Landmark },
-      { href: "/dashboard/transactions", label: "Mutasi Transaksi", icon: ArrowLeftRight },
+      { href: "/dashboard/sales", label: "Kasir & Kasbon Warung", icon: ShoppingCart },
+      { href: "/dashboard/inventory", label: "Barang & Stok Sembako", icon: Package },
     ],
   },
   {
-    title: "PENJUALAN & STOK",
+    title: "KEUANGAN WARUNG",
     items: [
-      { href: "/dashboard/sales", label: "Penjualan & Invoice", icon: ShoppingCart },
-      { href: "/dashboard/inventory", label: "Inventori Produk", icon: Package },
+      { href: "/dashboard/accounts", label: "Kas Toko & Bank", icon: Landmark },
+      { href: "/dashboard/transactions", label: "Mutasi & Kulakan", icon: ArrowLeftRight },
     ],
   },
   {
     title: "SDM & LAPORAN",
     items: [
-      { href: "/dashboard/employees", label: "Karyawan & Payroll", icon: Users2 },
-      { href: "/dashboard/reports", label: "Laporan Keuangan", icon: FileBarChart2 },
+      { href: "/dashboard/employees", label: "Penjaga Warung", icon: Users2 },
+      { href: "/dashboard/reports", label: "Laporan Keuntungan", icon: FileBarChart2 },
     ],
   },
   {
     title: "SISTEM",
     items: [
-      { href: "/dashboard/settings", label: "Pengaturan & Backup", icon: Settings },
+      { href: "/dashboard/settings", label: "Pengaturan Warung", icon: Settings },
     ],
   },
 ];
@@ -60,10 +60,19 @@ export default function Sidebar({ isOpen, isCollapsed, toggleCollapse, closeMobi
   const router = useRouter();
 
   const handleLogout = async () => {
-    if (supabase) {
-      await supabase.auth.signOut();
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch (err) {
+      console.error("Error signing out:", err);
+    } finally {
+      // Pastikan cookie sesi auth terhapus
+      if (typeof document !== "undefined") {
+        document.cookie = "sb-access-token=; path=/; max-age=0; SameSite=Lax";
+      }
+      router.replace("/");
     }
-    router.push("/");
   };
 
   const isActive = (href) => {

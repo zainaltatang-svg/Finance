@@ -1,5 +1,12 @@
 import "./globals.css";
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata = {
   title: {
     default: "ZENTA | Aplikasi Manajemen Bisnis & Keuangan",
@@ -13,9 +20,6 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="id">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
       <body>{children}</body>
     </html>
   );
